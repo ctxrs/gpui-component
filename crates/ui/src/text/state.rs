@@ -1,4 +1,5 @@
 use std::{
+    future::Future,
     pin::Pin,
     sync::{Arc, Mutex},
     task::Poll,
@@ -21,6 +22,7 @@ use crate::{
         document::ParsedDocument,
         format,
         node::{self, NodeContext},
+        style::CodeTokenLinks,
     },
     v_flex,
 };
@@ -154,6 +156,17 @@ impl TextViewState {
         cx.notify();
     }
 
+    /// Set the text view style.
+    pub fn set_text_view_style(&mut self, style: TextViewStyle, cx: &mut Context<Self>) {
+        let prev_links = self.text_view_style.code_token_links.clone();
+        self.text_view_style = style;
+        let requires_reparse = prev_links != self.text_view_style.code_token_links;
+        if requires_reparse {
+            let current_text = self.text.to_string();
+            self.increment_update(current_text.as_str(), false, cx);
+        }
+    }
+
     /// Set the text content.
     pub fn set_text(&mut self, text: &str, cx: &mut Context<Self>) {
         if self.text.as_str() == text {
@@ -184,6 +197,7 @@ impl TextViewState {
             content: self.parsed_content.clone(),
             pending_text: text.to_string(),
             highlight_theme: cx.theme().highlight_theme.clone(),
+            code_token_links: self.text_view_style.code_token_links.clone(),
         };
 
         // Parse at first time by blocking.
@@ -259,6 +273,7 @@ impl Render for TextViewState {
             (content.document.clone(), content.node_cx.clone())
         };
 
+        node_cx.style = self.text_view_style.clone();
         node_cx.code_block_actions = self.code_block_actions.clone();
 
         v_flex()
@@ -320,6 +335,7 @@ impl UpdateFuture {
                 pending_text: String::new(),
                 content: Default::default(),
                 highlight_theme: cx.theme().highlight_theme.clone(),
+                code_token_links: CodeTokenLinks::default(),
             },
             timer: Timer::never(),
             rx: Box::pin(rx),
@@ -376,23 +392,30 @@ struct UpdateOptions {
     pending_text: String,
     append: bool,
     highlight_theme: Arc<HighlightTheme>,
+    code_token_links: CodeTokenLinks,
 }
 
 fn parse_content(format: TextViewFormat, options: &UpdateOptions) -> Result<(), SharedString> {
     let mut node_cx = NodeContext {
         ..NodeContext::default()
     };
+    node_cx.style.code_token_links = options.code_token_links.clone();
 
     let mut content = options.content.lock().unwrap();
     let mut source = String::new();
-    if options.append
-        && let Some(last_block) = content.document.blocks.pop()
-        && let Some(span) = last_block.span()
-    {
-        node_cx.offset = span.start;
-        let last_source = &content.document.source[span.start..];
-        source.push_str(last_source);
-        source.push_str(&options.pending_text);
+    if options.append {
+        if let Some(last_block) = content.document.blocks.pop() {
+            if let Some(span) = last_block.span() {
+                node_cx.offset = span.start;
+                let last_source = &content.document.source[span.start..];
+                source.push_str(last_source);
+                source.push_str(&options.pending_text);
+            } else {
+                source = options.pending_text.to_string();
+            }
+        } else {
+            source = options.pending_text.to_string();
+        }
     } else {
         source = options.pending_text.to_string();
     }
@@ -411,6 +434,8 @@ fn parse_content(format: TextViewFormat, options: &UpdateOptions) -> Result<(), 
     } else {
         content.document = new_content;
     }
+
+    content.node_cx = node_cx;
 
     Ok(())
 }

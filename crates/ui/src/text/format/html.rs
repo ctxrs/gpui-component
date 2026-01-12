@@ -306,13 +306,15 @@ fn parse_paragraph(
                     merge_child_text(&mut text, &mut marks, &child_text, &child_marks);
                 }
 
+                let href = attr_value(&attrs, local_name!("href")).unwrap_or_default();
+                let is_ctx = href.starts_with("ctx://open?");
                 marks.push((
                     0..text.len(),
                     TextMark::default().link(LinkMark {
-                        url: attr_value(&attrs, local_name!("href"))
-                            .unwrap_or_default()
-                            .into(),
+                        url: href.into(),
                         title: attr_value(&attrs, local_name!("title")).map(Into::into),
+                        requires_modifiers: is_ctx,
+                        decorate: !is_ctx,
                         ..Default::default()
                     }),
                 ));

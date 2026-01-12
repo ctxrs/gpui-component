@@ -1,4 +1,5 @@
 use gpui::SharedString;
+use std::ops::Range;
 use markdown::{
     ParseOptions,
     mdast::{self, Node},
@@ -11,6 +12,10 @@ use crate::{
         node::{
             self, BlockNode, CodeBlock, ImageNode, InlineNode, LinkMark, NodeContext, Paragraph,
             Span, Table, TableRow, TextMark,
+        },
+        utils::{
+            encode_uri_component, is_absolute_path, parse_file_ref_token, parse_url_token,
+            split_whitespace_token_ranges, FileRef,
         },
     },
 };
@@ -26,6 +31,70 @@ pub(crate) fn parse(
     markdown::to_mdast(&source, &ParseOptions::gfm())
         .map(|n| ast_to_document(source, n, cx, highlight_theme))
         .map_err(|e| e.to_string().into())
+}
+
+
+fn build_inline_code_marks(text: &str, cx: &NodeContext) -> Vec<(Range<usize>, TextMark)> {
+    let mut marks = vec![(0..text.len(), TextMark::default().code())];
+    let options = &cx.style.code_token_links;
+    if !options.enabled || text.is_empty() {
+        return marks;
+    }
+
+    for range in split_whitespace_token_ranges(text) {
+        if range.start >= range.end {
+            continue;
+        }
+        let token = &text[range.clone()];
+        if token.trim().is_empty() {
+            continue;
+        }
+
+        if let Some(url) = parse_url_token(token) {
+            let mut link = LinkMark::default();
+            link.url = url.into();
+            link.requires_modifiers = true;
+            link.decorate = false;
+            marks.push((range.clone(), TextMark::default().link(link)));
+            continue;
+        }
+
+        if let Some(file_ref) = parse_file_ref_token(token) {
+            let can_link = options.worktree_id.is_some() || is_absolute_path(&file_ref.path);
+            if !can_link {
+                continue;
+            }
+            if let Some(url) = build_ctx_open_url(&file_ref, options.worktree_id.as_ref()) {
+                let mut link = LinkMark::default();
+                link.url = url;
+                link.requires_modifiers = true;
+                link.decorate = false;
+                marks.push((range.clone(), TextMark::default().link(link)));
+            }
+        }
+    }
+
+    marks
+}
+
+fn build_ctx_open_url(file_ref: &FileRef, worktree_id: Option<&SharedString>) -> Option<SharedString> {
+    let mut params: Vec<String> = Vec::new();
+    if is_absolute_path(&file_ref.path) {
+        params.push(format!("path={}", encode_uri_component(&file_ref.path)));
+    } else {
+        let Some(worktree_id) = worktree_id else {
+            return None;
+        };
+        params.push(format!("worktreeId={}", encode_uri_component(worktree_id.as_ref())));
+        params.push(format!("file={}", encode_uri_component(&file_ref.path)));
+    }
+    if let Some(line) = file_ref.line {
+        params.push(format!("line={}", line));
+    }
+    if let Some(col) = file_ref.col {
+        params.push(format!("col={}", col));
+    }
+    Some(format!("ctx://open?{}", params.join("&")).into())
 }
 
 fn parse_table_row(table: &mut Table, node: &mdast::TableRow, cx: &mut NodeContext) {
@@ -104,14 +173,16 @@ fn parse_paragraph(paragraph: &mut Paragraph, node: &mdast::Node, cx: &mut NodeC
         }
         Node::InlineCode(val) => {
             text = val.value.clone();
-            paragraph.push(
-                InlineNode::new(&text).marks(vec![(0..text.len(), TextMark::default().code())]),
-            );
+            let marks = build_inline_code_marks(&text, cx);
+            paragraph.push(InlineNode::new(&text).marks(marks));
         }
         Node::Link(val) => {
+            let is_ctx = val.url.starts_with("ctx://open?");
             let link_mark = Some(LinkMark {
                 url: val.url.clone().into(),
                 title: val.title.clone().map(|s| s.into()),
+                requires_modifiers: is_ctx,
+                decorate: !is_ctx,
                 ..Default::default()
             });
 
@@ -202,6 +273,7 @@ fn parse_paragraph(paragraph: &mut Paragraph, node: &mdast::Node, cx: &mut NodeC
                 url: "".into(),
                 title: link.label.clone().map(Into::into),
                 identifier: Some(link.identifier.clone().into()),
+                ..Default::default()
             };
 
             paragraph.push(InlineNode::new(&child_text).marks(vec![(
@@ -417,12 +489,16 @@ fn ast_to_node(
             BlockNode::Paragraph(paragraph)
         }
         Node::Definition(def) => {
+            let is_ctx = def.url.starts_with("ctx://open?");
             cx.add_ref(
                 def.identifier.clone().into(),
                 LinkMark {
                     url: def.url.clone().into(),
                     identifier: Some(def.identifier.clone().into()),
                     title: def.title.clone().map(Into::into),
+                    requires_modifiers: is_ctx,
+                    decorate: !is_ctx,
+                    ..Default::default()
                 },
             );
 

@@ -5,13 +5,18 @@ use std::{
 };
 
 use gpui::{
-    point, px, quad, App, BorderStyle, Bounds, CursorStyle, Edges, Element, ElementId,
-    GlobalElementId, Half, HighlightStyle, Hitbox, HitboxBehavior, InspectorElementId, IntoElement,
-    LayoutId, MouseMoveEvent, MouseUpEvent, Pixels, Point, SharedString, StyledText, TextLayout,
-    Window,
+    point, px, quad, transparent_black, App, BorderStyle, Bounds, Corners, CursorStyle, Edges,
+    Element, ElementId, GlobalElementId, Half, HighlightStyle, Hitbox, HitboxBehavior, Hsla,
+    InspectorElementId, IntoElement, LayoutId, MouseMoveEvent, MouseUpEvent, Pixels, Point,
+    SharedString, StyledText, TextLayout, Window,
 };
 
-use crate::{global_state::GlobalState, input::Selection, text::node::LinkMark, ActiveTheme};
+use crate::{
+    global_state::GlobalState,
+    input::Selection,
+    text::{node::LinkMark, style::InlineCodeStyle},
+    ActiveTheme,
+};
 
 /// A inline element used to render a inline text and support selectable.
 ///
@@ -21,6 +26,8 @@ pub(super) struct Inline {
     text: SharedString,
     links: Rc<Vec<(Range<usize>, LinkMark)>>,
     highlights: Vec<(Range<usize>, HighlightStyle)>,
+    code_ranges: Vec<Range<usize>>,
+    inline_code_style: Option<InlineCodeStyle>,
     styled_text: StyledText,
 
     state: Arc<Mutex<InlineState>>,
@@ -48,12 +55,16 @@ impl Inline {
         state: Arc<Mutex<InlineState>>,
         links: Vec<(Range<usize>, LinkMark)>,
         highlights: Vec<(Range<usize>, HighlightStyle)>,
+        code_ranges: Vec<Range<usize>>,
+        inline_code_style: Option<InlineCodeStyle>,
     ) -> Self {
         let text = state.lock().unwrap().text.clone();
         Self {
             id: id.into(),
             links: Rc::new(links),
             highlights,
+            code_ranges,
+            inline_code_style,
             text: text.clone(),
             styled_text: StyledText::new(text),
             state,
@@ -215,6 +226,127 @@ impl Inline {
             ));
         }
     }
+
+    fn paint_inline_code(
+        ranges: &[Range<usize>],
+        style: &InlineCodeStyle,
+        text_layout: &TextLayout,
+        bounds: &Bounds<Pixels>,
+        window: &mut Window,
+        _cx: &mut App,
+    ) {
+        if ranges.is_empty() || !style.is_enabled() {
+            return;
+        }
+
+        let line_height = text_layout.line_height();
+        let background = style.background_color.unwrap_or(transparent_black());
+        let border_color = style.border_color.unwrap_or(transparent_black());
+        let border_width = style.border_width;
+        let radius = style.border_radius;
+        let pad_x = style.padding_x;
+        let pad_y = style.padding_y;
+
+        for range in ranges {
+            if range.start >= range.end {
+                continue;
+            }
+            let Some(start_position) = text_layout.position_for_index(range.start) else {
+                continue;
+            };
+            let Some(end_position) = text_layout.position_for_index(range.end) else {
+                continue;
+            };
+
+            if start_position.y == end_position.y {
+                let rect = Bounds::from_corners(
+                    start_position,
+                    point(end_position.x, end_position.y + line_height),
+                );
+                Self::paint_inline_code_quad(
+                    rect,
+                    background,
+                    border_color,
+                    border_width,
+                    radius,
+                    pad_x,
+                    pad_y,
+                    window,
+                );
+            } else {
+                let first = Bounds::from_corners(
+                    start_position,
+                    point(bounds.right(), start_position.y + line_height),
+                );
+                Self::paint_inline_code_quad(
+                    first,
+                    background,
+                    border_color,
+                    border_width,
+                    radius,
+                    pad_x,
+                    pad_y,
+                    window,
+                );
+
+                if end_position.y > start_position.y + line_height {
+                    let middle = Bounds::from_corners(
+                        point(bounds.left(), start_position.y + line_height),
+                        point(bounds.right(), end_position.y),
+                    );
+                    Self::paint_inline_code_quad(
+                        middle,
+                        background,
+                        border_color,
+                        border_width,
+                        px(0.),
+                        pad_x,
+                        pad_y,
+                        window,
+                    );
+                }
+
+                let last = Bounds::from_corners(
+                    point(bounds.left(), end_position.y),
+                    point(end_position.x, end_position.y + line_height),
+                );
+                Self::paint_inline_code_quad(
+                    last,
+                    background,
+                    border_color,
+                    border_width,
+                    radius,
+                    pad_x,
+                    pad_y,
+                    window,
+                );
+            }
+        }
+    }
+
+    fn paint_inline_code_quad(
+        rect: Bounds<Pixels>,
+        background: Hsla,
+        border_color: Hsla,
+        border_width: Pixels,
+        radius: Pixels,
+        pad_x: Pixels,
+        pad_y: Pixels,
+        window: &mut Window,
+    ) {
+        let padded = Bounds::from_corners(
+            point(rect.left() - pad_x, rect.top() - pad_y),
+            point(rect.right() + pad_x, rect.bottom() + pad_y),
+        );
+        window.paint_quad(quad(
+            padded,
+            Corners::all(radius),
+            background,
+            Edges::all(border_width),
+            border_color,
+            BorderStyle::Solid,
+        ));
+    }
 }
 
 impl IntoElement for Inline {
@@ -246,18 +378,101 @@ impl Element for Inline {
     ) -> (LayoutId, Self::RequestLayoutState) {
         let text_style = window.text_style();
 
-        let mut runs = Vec::new();
-        let mut ix = 0;
-        for (range, highlight) in self.highlights.iter() {
-            if ix < range.start {
-                runs.push(text_style.clone().to_run(range.start - ix));
+        let runs = if self.code_ranges.is_empty() || self.inline_code_style.is_none() {
+            let mut runs = Vec::new();
+            let mut ix = 0;
+            for (range, highlight) in self.highlights.iter() {
+                if ix < range.start {
+                    runs.push(text_style.clone().to_run(range.start - ix));
+                }
+                runs.push(text_style.clone().highlight(*highlight).to_run(range.len()));
+                ix = range.end;
             }
-            runs.push(text_style.clone().highlight(*highlight).to_run(range.len()));
-            ix = range.end;
-        }
-        if ix < self.text.len() {
-            runs.push(text_style.to_run(self.text.len() - ix));
-        }
+            if ix < self.text.len() {
+                runs.push(text_style.to_run(self.text.len() - ix));
+            }
+            runs
+        } else {
+            let inline_code_style = self
+                .inline_code_style
+                .as_ref()
+                .expect("inline code style");
+            let mut breakpoints = Vec::new();
+            breakpoints.push(0);
+            breakpoints.push(self.text.len());
+            for (range, _) in self.highlights.iter() {
+                breakpoints.push(range.start);
+                breakpoints.push(range.end);
+            }
+            for range in self.code_ranges.iter() {
+                breakpoints.push(range.start);
+                breakpoints.push(range.end);
+            }
+            breakpoints.sort_unstable();
+            breakpoints.dedup();
+
+            let mut runs = Vec::new();
+            let mut highlight_index = 0;
+            let mut code_index = 0;
+
+            for window_bounds in breakpoints.windows(2) {
+                let start = window_bounds[0];
+                let end = window_bounds[1];
+                if start == end {
+                    continue;
+                }
+
+                while highlight_index < self.highlights.len()
+                    && self.highlights[highlight_index].0.end <= start
+                {
+                    highlight_index += 1;
+                }
+
+                let highlight = if highlight_index < self.highlights.len() {
+                    let (range, style) = &self.highlights[highlight_index];
+                    if range.start <= start && range.end >= end {
+                        Some(*style)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                while code_index < self.code_ranges.len()
+                    && self.code_ranges[code_index].end <= start
+                {
+                    code_index += 1;
+                }
+
+                let is_code = if code_index < self.code_ranges.len() {
+                    let range = &self.code_ranges[code_index];
+                    range.start <= start && range.end >= end
+                } else {
+                    false
+                };
+
+                let mut run_style = text_style.clone();
+                if let Some(style) = highlight {
+                    run_style = run_style.highlight(style);
+                }
+                if is_code {
+                    if let Some(font_family) = inline_code_style.font_family.as_ref() {
+                        run_style.font_family = font_family.clone();
+                    }
+                    if let Some(font_size) = inline_code_style.font_size {
+                        run_style.font_size = font_size.into();
+                    }
+                    if let Some(color) = inline_code_style.text_color {
+                        run_style.color = color;
+                    }
+                }
+
+                runs.push(run_style.to_run(end - start));
+            }
+
+            runs
+        };
 
         self.styled_text = StyledText::new(self.text.clone()).with_runs(runs);
         let (layout_id, _) =
@@ -298,6 +513,9 @@ impl Element for Inline {
         let mut state = self.state.lock().unwrap();
 
         let text_layout = self.styled_text.layout().clone();
+        if let Some(style) = self.inline_code_style.as_ref() {
+            Self::paint_inline_code(&self.code_ranges, style, &text_layout, &bounds, window, cx);
+        }
         self.styled_text
             .paint(global_id, None, bounds, &mut (), &mut (), window, cx);
 
@@ -313,8 +531,10 @@ impl Element for Inline {
 
         // link cursor pointer
         let mouse_position = window.mouse_position();
-        if let Some(_) = Self::link_for_position(&text_layout, &self.links, mouse_position) {
-            window.set_cursor_style(CursorStyle::PointingHand, &hitbox);
+        if let Some(link) = Self::link_for_position(&text_layout, &self.links, mouse_position) {
+            if !link.requires_modifiers || window.modifiers().secondary() {
+                window.set_cursor_style(CursorStyle::PointingHand, &hitbox);
+            }
         }
 
         if let Some(selection) = &state.selection {
@@ -355,6 +575,9 @@ impl Element for Inline {
                     if let Some(link) =
                         Self::link_for_position(&text_layout, &links, event.position)
                     {
+                        if link.requires_modifiers && !event.modifiers.secondary() {
+                            return;
+                        }
                         cx.stop_propagation();
                         cx.open_url(&link.url);
                     }

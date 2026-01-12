@@ -17,6 +17,8 @@ mod virtual_list;
 mod window_border;
 mod window_ext;
 
+pub use icon::{Icon, IconName};
+
 pub(crate) mod actions;
 
 pub mod accordion;

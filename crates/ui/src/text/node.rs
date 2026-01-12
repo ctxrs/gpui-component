@@ -25,7 +25,13 @@ use crate::{
     v_flex,
 };
 
-use super::{TextViewStyle, utils::list_item_prefix};
+use super::{
+    TextViewStyle,
+    utils::{
+        encode_uri_component, is_absolute_path, list_item_prefix, parse_file_ref_token,
+        parse_url_token, split_whitespace_token_ranges, FileRef,
+    },
+};
 
 /// The block-level nodes.
 #[derive(Debug, Clone, PartialEq)]
@@ -198,12 +204,28 @@ impl BlockNode {
 }
 
 #[allow(unused)]
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LinkMark {
     pub url: SharedString,
     /// Optional identifier for footnotes.
     pub identifier: Option<SharedString>,
     pub title: Option<SharedString>,
+    /// Require secondary modifier (cmd/ctrl) to open.
+    pub requires_modifiers: bool,
+    /// Apply link styling (color/underline).
+    pub decorate: bool,
+}
+
+impl Default for LinkMark {
+    fn default() -> Self {
+        Self {
+            url: SharedString::default(),
+            identifier: None,
+            title: None,
+            requires_modifiers: false,
+            decorate: true,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -546,6 +568,7 @@ impl CodeBlock {
         cx: &mut App,
     ) -> AnyElement {
         let style = &node_cx.style;
+        let code_links = build_code_token_links(self.state.lock().unwrap().text.as_ref(), style);
 
         div()
             .when(!options.is_last, |this| this.pb(style.paragraph_gap))
@@ -562,8 +585,10 @@ impl CodeBlock {
                     .child(Inline::new(
                         "code",
                         self.state.clone(),
-                        vec![],
+                        code_links.clone(),
                         self.styles.clone(),
+                        Vec::new(),
+                        None,
                     ))
                     .when_some(node_cx.code_block_actions.clone(), |this, actions| {
                         this.child(
@@ -580,6 +605,70 @@ impl CodeBlock {
             )
             .into_any_element()
     }
+}
+
+
+fn build_code_token_links(text: &str, style: &TextViewStyle) -> Vec<(Range<usize>, LinkMark)> {
+    let options = &style.code_token_links;
+    if !options.enabled || text.is_empty() {
+        return Vec::new();
+    }
+
+    let mut links = Vec::new();
+    for range in split_whitespace_token_ranges(text) {
+        if range.start >= range.end {
+            continue;
+        }
+        let token = &text[range.clone()];
+        if token.trim().is_empty() {
+            continue;
+        }
+
+        if let Some(url) = parse_url_token(token) {
+            let mut link = LinkMark::default();
+            link.url = url.into();
+            link.requires_modifiers = true;
+            link.decorate = false;
+            links.push((range.clone(), link));
+            continue;
+        }
+
+        if let Some(file_ref) = parse_file_ref_token(token) {
+            let can_link = options.worktree_id.is_some() || is_absolute_path(&file_ref.path);
+            if !can_link {
+                continue;
+            }
+            if let Some(url) = build_ctx_open_url(&file_ref, options.worktree_id.as_ref()) {
+                let mut link = LinkMark::default();
+                link.url = url;
+                link.requires_modifiers = true;
+                link.decorate = false;
+                links.push((range.clone(), link));
+            }
+        }
+    }
+
+    links
+}
+
+fn build_ctx_open_url(file_ref: &FileRef, worktree_id: Option<&SharedString>) -> Option<SharedString> {
+    let mut params: Vec<String> = Vec::new();
+    if is_absolute_path(&file_ref.path) {
+        params.push(format!("path={}", encode_uri_component(&file_ref.path)));
+    } else {
+        let Some(worktree_id) = worktree_id else {
+            return None;
+        };
+        params.push(format!("worktreeId={}", encode_uri_component(worktree_id.as_ref())));
+        params.push(format!("file={}", encode_uri_component(&file_ref.path)));
+    }
+    if let Some(line) = file_ref.line {
+        params.push(format!("line={}", line));
+    }
+    if let Some(col) = file_ref.col {
+        params.push(format!("col={}", col));
+    }
+    Some(format!("ctx://open?{}", params.join("&")).into())
 }
 
 /// A context for rendering nodes, contains link references.
@@ -621,6 +710,10 @@ impl Paragraph {
         let mut text = String::new();
         let mut highlights: Vec<(Range<usize>, HighlightStyle)> = vec![];
         let mut links: Vec<(Range<usize>, LinkMark)> = vec![];
+        let inline_code_style = node_cx.style.inline_code.clone();
+        let inline_code_enabled = inline_code_style.is_enabled();
+        let inline_code_style_opt = inline_code_enabled.then(|| inline_code_style.clone());
+        let mut code_ranges: Vec<Range<usize>> = vec![];
         let mut offset = 0;
 
         let mut ix = 0;
@@ -635,12 +728,18 @@ impl Paragraph {
                         .lock()
                         .unwrap()
                         .set_text(text.clone().into());
+                    if inline_code_enabled {
+                        code_ranges.sort_by_key(|range| (range.start, range.end));
+                        code_ranges.dedup();
+                    }
                     child_nodes.push(
                         Inline::new(
                             ix,
                             inline_node.state.clone(),
                             links.clone(),
                             highlights.clone(),
+                            code_ranges.clone(),
+                            inline_code_style_opt.clone(),
                         )
                         .into_any_element(),
                     );
@@ -668,6 +767,7 @@ impl Paragraph {
                 text.clear();
                 links.clear();
                 highlights.clear();
+                code_ranges.clear();
                 offset = 0;
             } else {
                 let mut node_highlights = vec![];
@@ -688,15 +788,21 @@ impl Paragraph {
                         });
                     }
                     if style.code {
-                        highlight.background_color = Some(cx.theme().accent);
+                        if inline_code_enabled {
+                            code_ranges.push(inner_range.clone());
+                        } else {
+                            highlight.background_color = Some(cx.theme().accent);
+                        }
                     }
 
                     if let Some(mut link_mark) = style.link.clone() {
-                        highlight.color = Some(cx.theme().link);
-                        highlight.underline = Some(gpui::UnderlineStyle {
-                            thickness: gpui::px(1.),
-                            ..Default::default()
-                        });
+                        if link_mark.decorate {
+                            highlight.color = Some(cx.theme().link);
+                            highlight.underline = Some(gpui::UnderlineStyle {
+                                thickness: gpui::px(1.),
+                                ..Default::default()
+                            });
+                        }
 
                         // convert link references, replace link
                         if let Some(identifier) = link_mark.identifier.as_ref() {
@@ -719,9 +825,22 @@ impl Paragraph {
 
         // Add the last text node
         if text.len() > 0 {
+            if inline_code_enabled {
+                code_ranges.sort_by_key(|range| (range.start, range.end));
+                code_ranges.dedup();
+            }
             self.state.lock().unwrap().set_text(text.into());
-            child_nodes
-                .push(Inline::new(ix, self.state.clone(), links, highlights).into_any_element());
+            child_nodes.push(
+                Inline::new(
+                    ix,
+                    self.state.clone(),
+                    links,
+                    highlights,
+                    code_ranges,
+                    inline_code_style_opt,
+                )
+                .into_any_element(),
+            );
         }
 
         div().id(span.unwrap_or_default()).children(child_nodes)
