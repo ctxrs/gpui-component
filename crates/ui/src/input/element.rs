@@ -940,7 +940,8 @@ impl Element for TextElement {
 
         self.state.update(cx, |state, cx| {
             state.text_wrapper.set_font(font, text_size, cx);
-            state.text_wrapper.prepare_if_need(state.text(), cx);
+            let text = state.text().clone();
+            state.text_wrapper.prepare_if_need(&text, cx);
         });
 
         let state = self.state.read(cx);

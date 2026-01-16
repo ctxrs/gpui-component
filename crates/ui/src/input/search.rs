@@ -184,7 +184,7 @@ impl InputState {
             return;
         };
 
-        let text = self.text.clone();
+        let text = self.text().clone();
         search_panel.update(cx, |this, _| {
             this.matcher.update(&text);
         });
@@ -205,7 +205,7 @@ impl InputState {
             None => SearchPanel::new(cx.entity(), window, cx),
         };
 
-        let text = self.text.clone();
+        let text = self.text().clone();
         let editor = cx.entity();
         let selected_text = Rope::from(self.selected_text());
         search_panel.update(cx, |this, cx| {
