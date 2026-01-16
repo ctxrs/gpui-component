@@ -126,8 +126,8 @@ impl InputState {
         cx: &mut Context<Self>,
     ) {
         for edit in text_edits {
-            let start = self.text.position_to_offset(&edit.range.start);
-            let end = self.text.position_to_offset(&edit.range.end);
+            let start = self.text().position_to_offset(&edit.range.start);
+            let end = self.text().position_to_offset(&edit.range.end);
 
             let range_utf16 = self.range_to_utf16(&(start..end));
             self.replace_text_in_range_silent(Some(range_utf16), &edit.new_text, window, cx);

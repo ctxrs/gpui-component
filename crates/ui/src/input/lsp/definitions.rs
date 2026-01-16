@@ -79,8 +79,8 @@ impl InputState {
         }
 
         // Currently not implemented.
-        let task = provider.definitions(&self.text, offset, window, cx);
-        let mut symbol_range = self.text.word_range(offset).unwrap_or(offset..offset);
+        let task = provider.definitions(self.text(), offset, window, cx);
+        let mut symbol_range = self.text().word_range(offset).unwrap_or(offset..offset);
         let editor = cx.entity();
         self.lsp._hover_task = cx.spawn_in(window, async move |_, cx| {
             let locations = task.await?;
@@ -91,8 +91,8 @@ impl InputState {
                 } else {
                     if let Some(location) = locations.first() {
                         if let Some(range) = location.origin_selection_range {
-                            let start = editor.text.position_to_offset(&range.start);
-                            let end = editor.text.position_to_offset(&range.end);
+                            let start = editor.text().position_to_offset(&range.start);
+                            let end = editor.text().position_to_offset(&range.end);
                             symbol_range = start..end;
                         }
                     }
@@ -169,8 +169,8 @@ impl InputState {
         } else {
             // Move to the location.
             let target_range = location.target_range;
-            let start = self.text.position_to_offset(&target_range.start);
-            let end = self.text.position_to_offset(&target_range.end);
+            let start = self.text().position_to_offset(&target_range.start);
+            let end = self.text().position_to_offset(&target_range.end);
 
             self.move_to(start, None, cx);
             self.select_to(end, cx);

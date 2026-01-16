@@ -169,7 +169,7 @@ impl InputState {
         };
 
         let provider_responses =
-            provider.completions(&self.text, new_offset, completion_context, window, cx);
+            provider.completions(self.text(), new_offset, completion_context, window, cx);
         self._context_menu_task = cx.spawn_in(window, async move |editor, cx| {
             let mut completions: Vec<CompletionItem> = vec![];
             if let Some(provider_responses) = provider_responses.await.ok() {
@@ -220,7 +220,7 @@ impl InputState {
         };
 
         let offset = self.cursor();
-        let text = self.text.clone();
+        let text = self.text().to_owned();
         let debounce = provider.inline_completion_debounce();
 
         self.inline_completion.task = cx.spawn_in(window, async move |editor, cx| {

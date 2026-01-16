@@ -47,7 +47,7 @@ impl InputState {
     ///
     /// The offset is the UTF-8 offset.
     pub(super) fn select_word(&mut self, offset: usize, _: &mut Window, cx: &mut Context<Self>) {
-        let Some(range) = TextSelector::word_range(&self.text, offset) else {
+        let Some(range) = TextSelector::word_range(self.text(), offset) else {
             return;
         };
 

@@ -19,7 +19,7 @@ impl InputState {
             return;
         };
 
-        let point = self.text.offset_to_point(self.cursor());
+        let point = self.text().offset_to_point(self.cursor());
         let row = point.row.saturating_sub(last_layout.visible_range.start);
         let Some(line) = last_layout.lines.get(row) else {
             self.preferred_column = None;
@@ -45,7 +45,7 @@ impl InputState {
         direction: Option<MoveDirection>,
         cx: &mut Context<Self>,
     ) {
-        let offset = offset.clamp(0, self.text.len());
+        let offset = offset.clamp(0, self.text().len());
         self.selected_range = (offset..offset).into();
         self.scroll_to(offset, direction, cx);
         self.pause_blink_cursor(cx);
@@ -84,7 +84,7 @@ impl InputState {
             let mut next_display_point = self.text_wrapper.offset_to_display_point(new_offset);
             next_display_point.column = 0;
             let next_point = self.text_wrapper.display_point_to_point(next_display_point);
-            let line_start_offset = self.text.line_start_offset(next_point.row);
+            let line_start_offset = self.text().line_start_offset(next_point.row);
 
             // If in visible range, prefer to use position to get column.
             if let Some(line) = last_layout.line(next_point.row) {
@@ -99,7 +99,7 @@ impl InputState {
                 }
             } else {
                 // Not in visible range, use column directly.
-                let max_line_len = self.text.slice_line(next_point.row).len();
+                let max_line_len = self.text().slice_line(next_point.row).len();
                 new_offset = line_start_offset + column.min(max_line_len);
             }
         }
@@ -228,7 +228,7 @@ impl InputState {
     }
 
     pub(super) fn move_to_end(&mut self, _: &MoveToEnd, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(self.text.len(), None, cx);
+        self.move_to(self.text().len(), None, cx);
     }
 
     pub(super) fn move_to_previous_word(

@@ -15,6 +15,7 @@ use ropey::{Rope, RopeSlice};
 use serde::Deserialize;
 use std::ops::Range;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use sum_tree::Bias;
 use unicode_segmentation::*;
 
@@ -36,6 +37,16 @@ use crate::input::{
 use crate::input::{InlineCompletion, RopeExt as _, Selection};
 use crate::{Root, history::History};
 use crate::{highlighter::DiagnosticSet, input::text_wrapper::LineItem};
+
+static FORCE_CURSOR_VISIBLE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_force_cursor_visible(enabled: bool) {
+    FORCE_CURSOR_VISIBLE.store(enabled, Ordering::Relaxed);
+}
+
+pub(crate) fn force_cursor_visible() -> bool {
+    FORCE_CURSOR_VISIBLE.load(Ordering::Relaxed)
+}
 
 #[derive(Action, Clone, PartialEq, Eq, Deserialize)]
 #[action(namespace = input, no_json)]
@@ -276,7 +287,7 @@ impl LastLayout {
 pub struct InputState {
     pub(super) focus_handle: FocusHandle,
     pub(super) mode: InputMode,
-    pub(super) text: Rope,
+    text: Rope,
     pub(super) text_wrapper: TextWrapper,
     pub(super) history: History<Change>,
     pub(super) blink_cursor: Entity<BlinkCursor>,
@@ -1719,6 +1730,11 @@ impl InputState {
 
     /// Returns the true to let InputElement to render cursor, when Input is focused and current BlinkCursor is visible.
     pub(crate) fn show_cursor(&self, window: &Window, cx: &App) -> bool {
+        if force_cursor_visible() {
+            return (self.focus_handle.is_focused(window) || self.is_context_menu_open(cx))
+                && !self.disabled
+                && window.is_window_active();
+        }
         (self.focus_handle.is_focused(window) || self.is_context_menu_open(cx))
             && !self.disabled
             && self.blink_cursor.read(cx).visible()

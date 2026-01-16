@@ -45,8 +45,8 @@ impl InputState {
         }
 
         // Currently not implemented.
-        let task = provider.hover(&self.text, offset, window, cx);
-        let mut symbol_range = self.text.word_range(offset).unwrap_or(offset..offset);
+        let task = provider.hover(self.text(), offset, window, cx);
+        let mut symbol_range = self.text().word_range(offset).unwrap_or(offset..offset);
         let editor = cx.entity();
         let should_delay = self.hover_popover.is_none();
         self.lsp._hover_task = cx.spawn_in(window, async move |_, cx| {
@@ -61,8 +61,8 @@ impl InputState {
             _ = editor.update(cx, |editor, cx| match result {
                 Some(hover) => {
                     if let Some(range) = hover.range {
-                        let start = editor.text.position_to_offset(&range.start);
-                        let end = editor.text.position_to_offset(&range.end);
+                        let start = editor.text().position_to_offset(&range.start);
+                        let end = editor.text().position_to_offset(&range.end);
                         symbol_range = start..end;
                     }
                     let hover_popover = HoverPopover::new(cx.entity(), symbol_range, &hover, cx);

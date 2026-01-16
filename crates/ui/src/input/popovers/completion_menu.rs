@@ -240,13 +240,13 @@ impl CompletionMenu {
                     match text_edit {
                         CompletionTextEdit::Edit(edit) => {
                             new_text = edit.new_text.clone();
-                            range.start = editor.text.position_to_offset(&edit.range.start);
-                            range.end = editor.text.position_to_offset(&edit.range.end);
+                            range.start = editor.text().position_to_offset(&edit.range.start);
+                            range.end = editor.text().position_to_offset(&edit.range.end);
                         }
                         CompletionTextEdit::InsertAndReplace(edit) => {
                             new_text = edit.new_text.clone();
-                            range.start = editor.text.position_to_offset(&edit.replace.start);
-                            range.end = editor.text.position_to_offset(&edit.replace.end);
+                            range.start = editor.text().position_to_offset(&edit.replace.start);
+                            range.end = editor.text().position_to_offset(&edit.replace.end);
                         }
                     }
                 } else if let Some(insert_text) = item.insert_text.clone() {

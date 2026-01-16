@@ -5,7 +5,7 @@ use gpui::{
     prelude::FluentBuilder, px,
 };
 
-use super::{InputEvent, blink_cursor::BlinkCursor};
+use super::{InputEvent, blink_cursor::BlinkCursor, state::force_cursor_visible};
 use crate::{ActiveTheme, Disableable, Icon, IconName, Sizable, Size, h_flex, v_flex};
 
 pub struct OtpState {
@@ -220,7 +220,11 @@ impl Sizable for OtpInput {
 impl RenderOnce for OtpInput {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let state = self.state.read(cx);
-        let blink_show = state.blink_cursor.read(cx).visible();
+        let blink_show = if force_cursor_visible() {
+            true
+        } else {
+            state.blink_cursor.read(cx).visible()
+        };
         let is_focused = state.focus_handle.is_focused(window);
 
         let text_size = match self.size {

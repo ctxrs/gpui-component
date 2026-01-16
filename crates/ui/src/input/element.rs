@@ -80,14 +80,14 @@ impl TextElement {
         if let Some(ime_marked_range) = &state.ime_marked_range {
             selected_range = (ime_marked_range.end..ime_marked_range.end).into();
         }
-        let is_selected_all = selected_range.len() == state.text.len();
+        let is_selected_all = selected_range.len() == state.text().len();
 
         let mut cursor = state.cursor();
         if state.masked {
             // Because masked use `*`, 1 char with 1 byte.
-            selected_range.start = state.text.offset_to_char_index(selected_range.start);
-            selected_range.end = state.text.offset_to_char_index(selected_range.end);
-            cursor = state.text.offset_to_char_index(cursor);
+            selected_range.start = state.text().offset_to_char_index(selected_range.start);
+            selected_range.end = state.text().offset_to_char_index(selected_range.end);
+            cursor = state.text().offset_to_char_index(cursor);
         }
 
         let mut current_row = None;
@@ -472,8 +472,8 @@ impl TextElement {
 
         if state.masked {
             // Because masked use `*`, 1 char with 1 byte.
-            selected_range.start = state.text.offset_to_char_index(selected_range.start);
-            selected_range.end = state.text.offset_to_char_index(selected_range.end);
+            selected_range.start = state.text().offset_to_char_index(selected_range.start);
+            selected_range.end = state.text().offset_to_char_index(selected_range.end);
         }
 
         let (start_ix, end_ix) = if selected_range.start < selected_range.end {
@@ -684,7 +684,7 @@ impl TextElement {
         }
 
         // Empty to use placeholder, the placeholder is not in the text_wrapper map.
-        if state.text.len() == 0 {
+        if state.text().len() == 0 {
             return display_text
                 .to_string()
                 .split("\n")
@@ -756,7 +756,7 @@ impl TextElement {
         cx: &mut App,
     ) -> Option<Vec<(Range<usize>, HighlightStyle)>> {
         let state = self.state.read(cx);
-        let text = &state.text;
+        let text = state.text();
         let is_multi_line = state.mode.is_multi_line();
 
         let (highlighter, diagnostics) = match &state.mode {
@@ -940,7 +940,7 @@ impl Element for TextElement {
 
         self.state.update(cx, |state, cx| {
             state.text_wrapper.set_font(font, text_size, cx);
-            state.text_wrapper.prepare_if_need(&state.text, cx);
+            state.text_wrapper.prepare_if_need(state.text(), cx);
         });
 
         let state = self.state.read(cx);
@@ -948,9 +948,9 @@ impl Element for TextElement {
 
         let (visible_range, visible_top) =
             self.calculate_visible_range(&state, line_height, bounds.size.height);
-        let visible_start_offset = state.text.line_start_offset(visible_range.start);
+        let visible_start_offset = state.text().line_start_offset(visible_range.start);
         let visible_end_offset = state
-            .text
+            .text()
             .line_end_offset(visible_range.end.saturating_sub(1));
 
         let highlight_styles = self.highlight_lines(
@@ -962,7 +962,7 @@ impl Element for TextElement {
 
         let state = self.state.read(cx);
         let multi_line = state.mode.is_multi_line();
-        let text = state.text.clone();
+        let text = state.text().to_owned();
         let is_empty = text.len() == 0;
         let placeholder = self.placeholder.clone();
 
@@ -1093,7 +1093,7 @@ impl Element for TextElement {
         // 2. Multi-line with soft wrap disabled.
         if state.mode.is_single_line() || !state.soft_wrap {
             let longest_row = state.text_wrapper.longest_row.row;
-            let longest_line: SharedString = state.text.slice_line(longest_row).to_string().into();
+            let longest_line: SharedString = state.text().slice_line(longest_row).to_string().into();
             longest_line_width = window
                 .text_system()
                 .shape_line(
@@ -1318,7 +1318,7 @@ impl Element for TextElement {
 
         let mut mask_offset_y = px(0.);
         let state = self.state.read(cx);
-        if state.masked && state.text.len() > 0 {
+        if state.masked && state.text().len() > 0 {
             // Move down offset for vertical centering the *****
             if cfg!(target_os = "macos") {
                 mask_offset_y = px(3.);

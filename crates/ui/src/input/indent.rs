@@ -129,7 +129,7 @@ impl TextElement {
         let mut offset_y = last_layout.visible_top;
         let mut last_indents = vec![];
         for ix in visible_range {
-            let line = state.text.slice_line(ix);
+            let line = state.text().slice_line(ix);
             let Some(line_layout) = last_layout.line(ix) else {
                 continue;
             };
@@ -365,8 +365,8 @@ impl InputState {
             let offset = self.offset_from_utf16(self.offset_to_utf16(offset));
             // FIXME: To improve performance
             if self
-                .text
-                .slice(offset..self.text.len())
+                .text()
+                .slice(offset..self.text().len())
                 .to_string()
                 .starts_with(tab_indent.as_ref())
             {

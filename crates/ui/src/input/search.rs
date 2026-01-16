@@ -381,12 +381,12 @@ impl SearchPanel {
             cx.update(|window, cx| {
                 editor.update(cx, |state, cx| {
                     // Replace from the end to avoid messing up the ranges.
-                    let mut rope = state.text.clone();
+                    let mut rope = state.text().to_owned();
                     for range in ranges.iter().rev() {
                         rope.replace(range.clone(), new_text.as_str());
                     }
                     state.replace_text_in_range_silent(
-                        Some(0..state.text.len()),
+                        Some(0..state.text().len()),
                         &rope.to_string(),
                         window,
                         cx,
