@@ -285,9 +285,10 @@ impl LastLayout {
 
 /// InputState to keep editing state of the [`super::Input`].
 pub struct InputState {
-    pub(super) focus_handle: FocusHandle,
+    focus_handle: FocusHandle,
     pub(super) mode: InputMode,
     text: Rope,
+    paint_epoch: u64,
     pub(super) text_wrapper: TextWrapper,
     pub(super) history: History<Change>,
     pub(super) blink_cursor: Entity<BlinkCursor>,
@@ -396,6 +397,7 @@ impl InputState {
         Self {
             focus_handle: focus_handle.clone(),
             text: "".into(),
+            paint_epoch: 0,
             text_wrapper: TextWrapper::new(text_style.font(), window.rem_size(), None),
             blink_cursor,
             history,
@@ -821,8 +823,23 @@ impl InputState {
     }
 
     /// Return the text [`Rope`] of the input field.
+    ///
+    /// Use `set_value`/`insert`/`replace*` to mutate so layout + paint stay in sync.
     pub fn text(&self) -> &Rope {
         &self.text
+    }
+
+    /// Return the paint epoch, which increments after the input text is painted.
+    pub fn paint_epoch(&self) -> u64 {
+        self.paint_epoch
+    }
+
+    pub(super) fn focus_handle_ref(&self) -> &FocusHandle {
+        &self.focus_handle
+    }
+
+    pub(super) fn is_focused(&self, window: &Window) -> bool {
+        self.focus_handle.is_focused(window)
     }
 
     /// Return the (0-based) [`Position`] of the cursor.

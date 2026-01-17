@@ -253,7 +253,7 @@ impl RenderOnce for Input {
         });
 
         let state = self.state.read(cx);
-        let focused = state.focus_handle.is_focused(window) && !state.disabled;
+        let focused = state.is_focused(window) && !state.disabled;
         let gap_x = match self.size {
             Size::Small => px(4.),
             Size::Large => px(8.),
@@ -283,7 +283,7 @@ impl RenderOnce for Input {
             .id(("input", self.state.entity_id()))
             .flex()
             .key_context(crate::input::CONTEXT)
-            .track_focus(&state.focus_handle.clone())
+            .track_focus(&state.focus_handle_ref().clone())
             .tab_index(self.tab_index)
             .when(!state.disabled, |this| {
                 this.on_action(window.listener_for(&self.state, InputState::backspace))

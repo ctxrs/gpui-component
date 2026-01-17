@@ -99,7 +99,7 @@ impl InputState {
             }
             editor
                 .update_in(cx, |editor, window, cx| {
-                    if !editor.focus_handle.is_focused(window) {
+                    if !editor.is_focused(window) {
                         return;
                     }
 

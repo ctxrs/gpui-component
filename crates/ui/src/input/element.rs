@@ -456,7 +456,7 @@ impl TextElement {
         cx: &mut App,
     ) -> Option<Path<Pixels>> {
         let state = self.state.read(cx);
-        if !state.focus_handle.is_focused(window) {
+        if !state.is_focused(window) {
             return None;
         }
 
@@ -586,7 +586,7 @@ impl TextElement {
         cx: &App,
     ) -> (Option<ShapedLine>, Vec<ShapedLine>) {
         // Must be focused to show inline completion
-        if !state.focus_handle.is_focused(window) {
+        if !state.is_focused(window) {
             return (None, vec![]);
         }
 
@@ -1273,9 +1273,9 @@ impl Element for TextElement {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let focus_handle = self.state.read(cx).focus_handle.clone();
+        let focus_handle = self.state.read(cx).focus_handle_ref().clone();
         let show_cursor = self.state.read(cx).show_cursor(window, cx);
-        let focused = focus_handle.is_focused(window);
+        let focused = self.state.read(cx).is_focused(window);
         let bounds = prepaint.bounds;
         let selected_range = self.state.read(cx).selected_range;
         let visible_range = &prepaint.last_layout.visible_range;
@@ -1511,6 +1511,7 @@ impl Element for TextElement {
             state.scroll_size = prepaint.scroll_size;
             state.update_scroll_offset(Some(prepaint.cursor_scroll_offset), cx);
             state.deferred_scroll_offset = None;
+            state.paint_epoch = state.paint_epoch.saturating_add(1);
 
             cx.notify();
         });
