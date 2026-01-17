@@ -634,7 +634,9 @@ impl InputState {
         self.history.ignore = true;
         let was_disabled = self.disabled;
         self.disabled = false;
-        self.replace_text(value, window, cx);
+        let text: SharedString = value.into();
+        self.replace_text(text.clone(), window, cx);
+        self.text_wrapper.set_default_text(&Rope::from(text.as_str()));
         self.disabled = was_disabled;
         self.history.ignore = false;
 
