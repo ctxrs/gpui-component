@@ -98,6 +98,9 @@ impl VirtualListScrollHandle {
     }
 
     /// Scroll to the item at the given index.
+    ///
+    /// Note: this only sets a deferred scroll target. Call `cx.notify()` or
+    /// `window.refresh()` after updating the scroll handle to trigger a repaint.
     pub fn scroll_to_item(&self, ix: usize, strategy: ScrollStrategy) {
         self.scroll_to_item_with_offset(ix, strategy, 0);
     }
@@ -114,6 +117,9 @@ impl VirtualListScrollHandle {
     }
 
     /// Scrolls to the bottom of the list.
+    ///
+    /// Note: this only sets a deferred scroll target. Call `cx.notify()` or
+    /// `window.refresh()` after updating the scroll handle to trigger a repaint.
     pub fn scroll_to_bottom(&self) {
         let items_count = self.state.borrow().items_count;
         self.scroll_to_item(items_count.saturating_sub(1), ScrollStrategy::Top);

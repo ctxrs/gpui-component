@@ -603,6 +603,7 @@ where
         });
         self.final_selected_index = selected_index;
         self.update_selected_value(window, cx);
+        cx.notify();
     }
 
     /// Set selected value for the select.
@@ -631,6 +632,7 @@ where
         self.list.update(cx, |list, _| {
             list.delegate_mut().delegate = items;
         });
+        cx.notify();
     }
 
     /// Get the selected index of the select.

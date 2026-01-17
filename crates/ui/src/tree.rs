@@ -275,6 +275,17 @@ impl TreeState {
         self.scroll_handle.scroll_to_item(ix, strategy);
     }
 
+    /// Scroll to the item and request a repaint.
+    pub fn scroll_to_item_and_notify(
+        &mut self,
+        ix: usize,
+        strategy: gpui::ScrollStrategy,
+        cx: &mut Context<Self>,
+    ) {
+        self.scroll_to_item(ix, strategy);
+        cx.notify();
+    }
+
     /// Get the currently selected entry, if any.
     pub fn selected_entry(&self) -> Option<&TreeEntry> {
         self.selected_ix.and_then(|ix| self.entries.get(ix))

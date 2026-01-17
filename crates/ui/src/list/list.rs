@@ -178,6 +178,7 @@ where
         self.selected_index = ix;
         self.delegate.set_selected_index(ix, window, cx);
         self.scroll_to_selected_item(window, cx);
+        cx.notify();
     }
 
     /// Set the selected index of the list,
@@ -190,6 +191,7 @@ where
     ) {
         self.selected_index = ix;
         self.delegate.set_selected_index(ix, window, cx);
+        cx.notify();
     }
 
     pub fn selected_index(&self) -> Option<IndexPath> {
@@ -205,6 +207,7 @@ where
     ) {
         self.mouse_right_clicked_index = ix;
         self.delegate.set_right_clicked_index(ix, window, cx);
+        cx.notify();
     }
 
     /// Returns the index of the item that has been right clicked.
