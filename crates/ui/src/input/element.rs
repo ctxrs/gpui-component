@@ -984,6 +984,19 @@ impl Element for TextElement {
             (&text, text_style.color)
         };
 
+        if force_cursor_visible() {
+            let text_preview: String = display_text
+                .slice(..display_text.len().min(64))
+                .to_string()
+                .replace('\n', "\\n");
+            eprintln!(
+                "gpui-input prepaint: text_len={} text=\"{}\" color={:?}",
+                display_text.len(),
+                text_preview,
+                text_color
+            );
+        }
+
         // Calculate the width of the line numbers
         let (line_number_width, line_number_len) =
             Self::layout_line_numbers(&state, &text, text_size, &text_style, window);
