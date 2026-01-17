@@ -1511,7 +1511,7 @@ impl Element for TextElement {
             state.scroll_size = prepaint.scroll_size;
             state.update_scroll_offset(Some(prepaint.cursor_scroll_offset), cx);
             state.deferred_scroll_offset = None;
-            state.paint_epoch = state.paint_epoch.saturating_add(1);
+            state.bump_paint_epoch();
 
             cx.notify();
         });

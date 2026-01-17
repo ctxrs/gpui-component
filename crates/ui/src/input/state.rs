@@ -834,6 +834,10 @@ impl InputState {
         self.paint_epoch
     }
 
+    pub(super) fn bump_paint_epoch(&mut self) {
+        self.paint_epoch = self.paint_epoch.saturating_add(1);
+    }
+
     pub(super) fn focus_handle_ref(&self) -> &FocusHandle {
         &self.focus_handle
     }

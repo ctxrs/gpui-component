@@ -47,7 +47,7 @@ impl InputState {
         let is_selected = !self.selected_range.is_empty();
         let has_paste = is_enable && cx.read_from_clipboard().is_some();
 
-        let action_context = self.focus_handle.clone();
+        let action_context = self.focus_handle_ref().clone();
         self.mouse_context_menu.update(cx, |this, cx| {
             this.mouse_position = event.position;
             this.menu.update(cx, |menu, cx| {
