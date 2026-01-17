@@ -1285,6 +1285,17 @@ impl Element for TextElement {
         window: &mut Window,
         cx: &mut App,
     ) {
+        if force_cursor_visible() {
+            eprintln!(
+                "gpui-input paint: lines={} visible_range={:?} bounds=({:.1},{:.1})-({:.1}x{:.1})",
+                prepaint.last_layout.lines.len(),
+                prepaint.last_layout.visible_range,
+                prepaint.bounds.origin.x.0,
+                prepaint.bounds.origin.y.0,
+                prepaint.bounds.size.width.0,
+                prepaint.bounds.size.height.0
+            );
+        }
         let focus_handle = self.state.read(cx).focus_handle_ref().clone();
         let show_cursor = self.state.read(cx).show_cursor(window, cx);
         let focused = self.state.read(cx).is_focused(window);
