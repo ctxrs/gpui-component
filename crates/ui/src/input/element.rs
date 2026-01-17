@@ -969,6 +969,7 @@ impl Element for TextElement {
 
         let mut bounds = bounds;
 
+        let text_style = window.text_style();
         let (display_text, text_color) = if is_empty {
             (
                 &Rope::from(placeholder.as_str()),
@@ -977,13 +978,11 @@ impl Element for TextElement {
         } else if state.masked {
             (
                 &Rope::from("*".repeat(text.chars().count())),
-                cx.theme().foreground,
+                text_style.color,
             )
         } else {
-            (&text, cx.theme().foreground)
+            (&text, text_style.color)
         };
-
-        let text_style = window.text_style();
 
         // Calculate the width of the line numbers
         let (line_number_width, line_number_len) =
