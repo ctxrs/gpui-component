@@ -45,6 +45,9 @@ let input = cx.new(|cx|
 Input::new(&input)
 ```
 
+Note: `default_value` is intended for initialization. Use `set_value` for runtime
+updates so layout and paint stay in sync.
+
 ### Cleanable Input
 
 ```rust

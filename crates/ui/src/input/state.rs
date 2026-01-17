@@ -803,7 +803,14 @@ impl InputState {
     }
 
     /// Set the default value of the input field.
+    ///
+    /// This is intended for initialization. Use `set_value` for runtime updates
+    /// so layout/paint stay in sync.
     pub fn default_value(mut self, value: impl Into<SharedString>) -> Self {
+        debug_assert!(
+            self.last_layout.is_none(),
+            "default_value is init-only; use set_value for runtime updates"
+        );
         let text: SharedString = value.into();
         self.text = Rope::from(text.as_str());
         if let Some(diagnostics) = self.mode.diagnostics_mut() {
