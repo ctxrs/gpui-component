@@ -46,7 +46,18 @@ Input::new(&input)
 ```
 
 Note: `default_value` is intended for initialization. Use `set_value` for runtime
-updates so layout and paint stay in sync.
+updates so layout and paint stay in sync. Calling `default_value` after the
+first layout will panic.
+
+### Programmatic Updates (Runtime)
+
+```rust
+let input = cx.new(|cx| InputState::new(window, cx));
+
+input.update(cx, |state, cx| {
+    state.set_value("Updated text", window, cx);
+});
+```
 
 ### Cleanable Input
 

@@ -806,8 +806,12 @@ impl InputState {
     ///
     /// This is intended for initialization. Use `set_value` for runtime updates
     /// so layout/paint stay in sync.
+    /// Set the default value of the input field (init-only).
+    ///
+    /// Use `set_value` for runtime updates so layout/paint stay in sync.
+    #[track_caller]
     pub fn default_value(mut self, value: impl Into<SharedString>) -> Self {
-        debug_assert!(
+        assert!(
             self.last_layout.is_none(),
             "default_value is init-only; use set_value for runtime updates"
         );
@@ -831,7 +835,7 @@ impl InputState {
         self.mask_pattern.unmask(&self.text.to_string()).into()
     }
 
-    /// Return the text [`Rope`] of the input field.
+    /// Return the text [`Rope`] of the input field (read-only).
     ///
     /// Use `set_value`/`insert`/`replace*` to mutate so layout + paint stay in sync.
     pub fn text(&self) -> &Rope {

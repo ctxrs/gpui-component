@@ -984,19 +984,6 @@ impl Element for TextElement {
             (&text, text_style.color)
         };
 
-        if force_cursor_visible() {
-            let text_preview: String = display_text
-                .slice(..display_text.len().min(64))
-                .to_string()
-                .replace('\n', "\\n");
-            eprintln!(
-                "gpui-input prepaint: text_len={} text=\"{}\" color={:?}",
-                display_text.len(),
-                text_preview,
-                text_color
-            );
-        }
-
         // Calculate the width of the line numbers
         let (line_number_width, line_number_len) =
             Self::layout_line_numbers(&state, &text, text_size, &text_style, window);
@@ -1285,19 +1272,6 @@ impl Element for TextElement {
         window: &mut Window,
         cx: &mut App,
     ) {
-        if force_cursor_visible() {
-            let origin = prepaint.bounds.origin;
-            let size = prepaint.bounds.size;
-            eprintln!(
-                "gpui-input paint: lines={} visible_range={:?} bounds=({:?},{:?})-({:?}x{:?})",
-                prepaint.last_layout.lines.len(),
-                prepaint.last_layout.visible_range,
-                origin.x,
-                origin.y,
-                size.width,
-                size.height
-            );
-        }
         let focus_handle = self.state.read(cx).focus_handle_ref().clone();
         let show_cursor = self.state.read(cx).show_cursor(window, cx);
         let focused = self.state.read(cx).is_focused(window);
