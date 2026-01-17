@@ -1286,14 +1286,16 @@ impl Element for TextElement {
         cx: &mut App,
     ) {
         if force_cursor_visible() {
+            let origin = prepaint.bounds.origin;
+            let size = prepaint.bounds.size;
             eprintln!(
-                "gpui-input paint: lines={} visible_range={:?} bounds=({:.1},{:.1})-({:.1}x{:.1})",
+                "gpui-input paint: lines={} visible_range={:?} bounds=({:?},{:?})-({:?}x{:?})",
                 prepaint.last_layout.lines.len(),
                 prepaint.last_layout.visible_range,
-                prepaint.bounds.origin.x.0,
-                prepaint.bounds.origin.y.0,
-                prepaint.bounds.size.width.0,
-                prepaint.bounds.size.height.0
+                origin.x,
+                origin.y,
+                size.width,
+                size.height
             );
         }
         let focus_handle = self.state.read(cx).focus_handle_ref().clone();
