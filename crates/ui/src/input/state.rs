@@ -2244,6 +2244,7 @@ impl Render for InputState {
 
         div()
             .id("input-state")
+            .w_full()
             .flex_1()
             .when(self.mode.is_multi_line(), |this| this.h_full())
             .flex_grow()
